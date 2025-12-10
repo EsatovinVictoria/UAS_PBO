@@ -29,28 +29,10 @@ public class LayananController {
                 daftarLayanan.addAll(dariDB);
             } else {
                 // Jika database kosong, inisialisasi dengan default
-                initializeDefaultLayanan();
             }
         } catch (SQLException ex) {
             ex.printStackTrace();
             // Fallback ke default jika database error
-            initializeDefaultLayanan();
-        }
-    }
-    
-    private void initializeDefaultLayanan() {
-        // Clear existing data
-        daftarLayanan.clear();
-        
-        // Add default layanan
-        Layanan isiAngin = new IsiAngin(5000.0);
-        daftarLayanan.add(isiAngin);
-        
-        // Simpan ke database
-        try {
-            layananDAO.save(isiAngin);
-        } catch (SQLException ex) {
-            ex.printStackTrace();
         }
     }
     
