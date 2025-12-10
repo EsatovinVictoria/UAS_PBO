@@ -4,40 +4,40 @@
  */
 package com.apple.kuis2;
 
-/**
- *
- * @author USER
- */
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.io.FileWriter;
 import java.io.PrintWriter;
 import java.util.UUID;
+import java.util.List;
 
 public class PanelTransaksi extends JPanel {
 
   private final TransaksiController controller;
+  private final LayananController layananController;
 
-  private JComboBox<JenisBBM> cbBBM; // Komponen untuk menampilkan daftar jenis BBM
-  private JSpinner spinLiter; // Komponen untuk input jumlah liter
-  private JLabel lblHarga, lblTotal; // Komponen untuk menampilkan harga dan total
-  private JComboBox<PaymentMethod> cbPayment; // Komponen untuk memilih metode pembayaran
-  private JTextField txtPlat; // Komponen untuk input plat nomor
-  private JButton btnSimpan, btnReset, btnHapus, btnUpdateHarga, btnExportCsv; // Komponen button
-  private JTable table; // Komponen untuk menampilkan daftar transaksi
-  private DefaultTableModel tableModel; // Model tabel (untuk atur row dan column)
-  private JCheckBox cbCetak; // Komponen untuk cetak struk
-  private JTextArea txtInfo; // Komponen untuk menampilkan informasi
+  private JComboBox<JenisBBM> cbBBM;
+  private JSpinner spinLiter;
+  private JLabel lblHarga, lblTotal;
+  private JComboBox<PaymentMethod> cbPayment;
+  private JTextField txtPlat;
+  private JButton btnSimpan, btnReset, btnHapus, btnUpdateHarga, btnExportCsv;
+  private JTable table;
+  private DefaultTableModel tableModel;
+  private JCheckBox cbCetak;
+  private JTextArea txtInfo;
   private JCheckBox cbLayanan;
   private JComboBox<Layanan> cbTipeLayanan;
 
-  public PanelTransaksi(TransaksiController controller) {
+  public PanelTransaksi(TransaksiController controller, LayananController layananController) {
     this.controller = controller;
+    this.layananController = layananController;
     initComponents();
     layoutComponents();
     initEvents();
     refreshBBMList();
+    refreshLayananList();
   }
 
   private void initComponents() {
@@ -57,7 +57,6 @@ public class PanelTransaksi extends JPanel {
     
     cbLayanan = new JCheckBox("Tambah Layanan");
     cbTipeLayanan = new JComboBox<>();
-    cbTipeLayanan.addItem(new IsiAngin(5000)); // contoh
     cbTipeLayanan.setEnabled(false);
 
     tableModel = new DefaultTableModel(controller.getTableHeader(), 0) {
@@ -74,7 +73,7 @@ public class PanelTransaksi extends JPanel {
   }
 
   private JPanel buildFormPanel() {
-    JPanel form = new JPanel(new GridLayout(4, 4, 10, 10));
+    JPanel form = new JPanel(new GridLayout(6, 4, 10, 10));
     form.setBorder(BorderFactory.createTitledBorder("Form Transaksi"));
 
     // Baris 1
@@ -96,15 +95,16 @@ public class PanelTransaksi extends JPanel {
     form.add(txtPlat);
 
     // Baris 4
+    form.add(cbLayanan);
+    form.add(cbTipeLayanan);
+    form.add(cbCetak);
+    form.add(new JLabel()); // pengisi kosong
+
+    // Baris 5
     form.add(btnSimpan);
     form.add(btnReset);
-    form.add(cbCetak);
-    form.add(new JLabel()); // pengisi kosong agar layout rapi
-    
-    form.add(label("Layanan:"));
-    form.add(cbLayanan);
-    form.add(label("Tipe Layanan:"));
-    form.add(cbTipeLayanan);
+    form.add(new JLabel());
+    form.add(new JLabel());
 
     return form;
   }
@@ -114,6 +114,16 @@ public class PanelTransaksi extends JPanel {
     right.add(btnHapus);
     right.add(btnUpdateHarga);
     right.add(btnExportCsv);
+
+    // Tambahkan button untuk refresh dari database
+    JButton btnRefresh = new JButton("Refresh Data");
+    btnRefresh.addActionListener(e -> {
+      refreshBBMList();
+      refreshLayananList();
+      refreshTableFromController();
+      txtInfo.append("Data direfresh dari database\n");
+    });
+    right.add(btnRefresh);
 
     JPanel wrapper = new JPanel(new BorderLayout());
     wrapper.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
@@ -126,7 +136,6 @@ public class PanelTransaksi extends JPanel {
     JPanel south = new JPanel(new BorderLayout());
     south.setBorder(BorderFactory.createTitledBorder("Informasi"));
     south.add(new JScrollPane(txtInfo), BorderLayout.CENTER);
-    // JScrollPane Komponen untuk membungkus komponen agar bisa di scroll
     return south;
   }
 
@@ -139,7 +148,6 @@ public class PanelTransaksi extends JPanel {
 
     add(buildFormPanel(), BorderLayout.NORTH);
     add(new JScrollPane(table), BorderLayout.CENTER);
-    // JScrollPane Komponen untuk membungkus komponen agar bisa di scroll
     add(buildRightPanel(), BorderLayout.EAST);
     add(buildInfoPanel(), BorderLayout.SOUTH);
   }
@@ -153,7 +161,6 @@ public class PanelTransaksi extends JPanel {
         saveTransaksiFromForm();
       } catch (Exception ex) {
         JOptionPane.showMessageDialog(this, "Gagal simpan: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-        // JOptionPane komponen unut menampilkan dialog (pop up)
       }
     });
 
@@ -174,15 +181,22 @@ public class PanelTransaksi extends JPanel {
 
     btnUpdateHarga.addActionListener(e -> {
       JenisBBM selected = (JenisBBM) cbBBM.getSelectedItem();
+      if (selected == null) {
+        JOptionPane.showMessageDialog(this, "Pilih jenis BBM terlebih dahulu.");
+        return;
+      }
       String nama = selected.getNama();
-      String input = JOptionPane.showInputDialog(this, "Masukkan harga baru untuk " + nama + ":",
-          selected.getHargaPerLiter());
-      if (input != null) {
+      String input = JOptionPane.showInputDialog(this, 
+          "Masukkan harga baru untuk " + nama + ":", selected.getHargaPerLiter());
+      if (input != null && !input.trim().isEmpty()) {
         try {
           double hargaBaru = Double.parseDouble(input);
-          controller.updateHarga(nama, hargaBaru);
-          refreshBBMList();
-          txtInfo.append("Harga " + nama + " diupdate menjadi Rp " + hargaBaru + "\n");
+          if (controller.updateHarga(nama, hargaBaru)) {
+            refreshBBMList();
+            txtInfo.append("Harga " + nama + " diupdate menjadi Rp " + hargaBaru + "\n");
+          } else {
+            JOptionPane.showMessageDialog(this, "Gagal mengupdate harga.");
+          }
         } catch (NumberFormatException ex) {
           JOptionPane.showMessageDialog(this, "Harga tidak valid.");
         }
@@ -200,18 +214,42 @@ public class PanelTransaksi extends JPanel {
     cbLayanan.addActionListener(e -> cbTipeLayanan.setEnabled(cbLayanan.isSelected()));
   }
 
-  private void refreshBBMList() {
-    cbBBM.removeAllItems();
-    for (JenisBBM j : controller.getSemuaJenisBBM())
-      cbBBM.addItem(j);
-    updateHargaLabel();
-    refreshTableFromController();
-  }
+ private void refreshBBMList() {
+    SwingUtilities.invokeLater(() -> {
+        cbBBM.removeAllItems();
+        List<JenisBBM> semuaBBM = controller.getSemuaJenisBBM();
+        System.out.println("Jumlah BBM di dropdown: " + semuaBBM.size()); // Debug
+        for (JenisBBM j : semuaBBM) {
+            System.out.println("Menambahkan BBM: " + j.getNama()); // Debug
+            cbBBM.addItem(j);
+        }
+        if (cbBBM.getItemCount() > 0) {
+            cbBBM.setSelectedIndex(0);
+        }
+        updateHargaLabel();
+        repaint();
+    });
+}
+private void refreshLayananList() {
+    SwingUtilities.invokeLater(() -> {
+        cbTipeLayanan.removeAllItems();
+        List<Layanan> semuaLayanan = layananController.getSemuaLayanan();
+        System.out.println("Jumlah Layanan di dropdown: " + semuaLayanan.size()); // Debug
+        for (Layanan layanan : semuaLayanan) {
+            System.out.println("Menambahkan Layanan: " + layanan.getNama()); // Debug
+            cbTipeLayanan.addItem(layanan);
+        }
+        if (cbTipeLayanan.getItemCount() > 0) {
+            cbTipeLayanan.setEnabled(true);
+        }
+        repaint();
+    });
+}
 
   private void updateHargaLabel() {
     JenisBBM j = (JenisBBM) cbBBM.getSelectedItem();
     if (j != null)
-      lblHarga.setText(String.format("Rp %.2f", j.getHargaPerLiter()));
+      lblHarga.setText(String.format("Rp %,.0f", j.getHargaPerLiter()));
     updateTotalLabel();
   }
 
@@ -222,17 +260,35 @@ public class PanelTransaksi extends JPanel {
       lblTotal.setText("Rp 0");
       return;
     }
-    lblTotal.setText(String.format("Rp %.2f", j.getHargaPerLiter() * liter));
+    
+    double total = j.getHargaPerLiter() * liter;
+    
+    // Tambahkan biaya layanan jika dipilih
+    if (cbLayanan.isSelected() && cbTipeLayanan.getSelectedItem() != null) {
+      Layanan layanan = (Layanan) cbTipeLayanan.getSelectedItem();
+      total += layanan.getHarga();
+    }
+    
+    lblTotal.setText(String.format("Rp %,.0f", total));
   }
 
   private void saveTransaksiFromForm() {
     JenisBBM j = (JenisBBM) cbBBM.getSelectedItem();
     if (j == null)
       throw new IllegalArgumentException("Jenis BBM belum dipilih.");
+      
     double liter = ((Number) spinLiter.getValue()).doubleValue();
+    if (liter < 0.5)
+      throw new IllegalArgumentException("Liter harus minimal 0.5");
+      
     PaymentMethod pm = (PaymentMethod) cbPayment.getSelectedItem();
-    String plat = txtPlat.getText();
+    String plat = txtPlat.getText().trim();
+    
+    if (plat.isEmpty())
+      throw new IllegalArgumentException("Plat nomor harus diisi.");
+    
     Layanan layanan = cbLayanan.isSelected() ? (Layanan) cbTipeLayanan.getSelectedItem() : null;
+    
     Transaksi t = controller.buatTransaksi(j.getNama(), liter, pm, plat, layanan);
     tableModel.addRow(t.toTableRow());
 
@@ -245,6 +301,8 @@ public class PanelTransaksi extends JPanel {
       showStruk(t);
     }
     
+    // Reset form setelah simpan
+    resetForm();
   }
 
   private void showStruk(Transaksi t) {
@@ -254,28 +312,35 @@ public class PanelTransaksi extends JPanel {
         + "Waktu: " + t.getFormattedWaktu() + "\n"
         + "Jenis BBM: " + t.getBbm().getNama() + "\n"
         + "Liter: " + t.getLiter() + "\n"
-        + "Harga/L: Rp " + t.getBbm().getHargaPerLiter() + "\n"
-        + "Total: Rp " + t.getTotalBayar() + "\n"
+        + "Harga/L: Rp " + String.format("%,.0f", t.getBbm().getHargaPerLiter()) + "\n";
+    
+    if (t.getLayanan() != null) {
+      struk += "Layanan: " + t.getLayanan().getNama() + " (Rp " + 
+               String.format("%,.0f", t.getLayanan().getHarga()) + ")\n";
+    }
+    
+    struk += "Total: Rp " + String.format("%,.0f", t.getTotalBayar()) + "\n"
         + "Metode: " + t.getMetodePembayaran() + "\n"
         + "Plat: " + t.getPlatNomor() + "\n"
         + "----------------------------\n";
+        
     JTextArea area = new JTextArea(struk);
     area.setEditable(false);
     JOptionPane.showMessageDialog(this, new JScrollPane(area), "Struk", JOptionPane.INFORMATION_MESSAGE);
-    // JScrollPane Komponen untuk membungkus komponen agar bisa di scroll
   }
 
   private void resetForm() {
     spinLiter.setValue(1.0);
     cbPayment.setSelectedIndex(0);
     txtPlat.setText("");
+    cbLayanan.setSelected(false);
+    cbTipeLayanan.setEnabled(false);
     cbCetak.setSelected(false);
     updateTotalLabel();
     txtInfo.append("Form direset\n");
   }
 
   private void refreshTableFromController() {
-    // clear model
     tableModel.setRowCount(0);
     for (Transaksi t : controller.getDaftarTransaksi()) {
       tableModel.addRow(t.toTableRow());
@@ -283,29 +348,36 @@ public class PanelTransaksi extends JPanel {
   }
 
   private void exportCsv() throws Exception {
-    JFileChooser chooser = new JFileChooser(); // JFileChooser Komponen untuk memilih file
+    JFileChooser chooser = new JFileChooser();
+    chooser.setSelectedFile(new java.io.File("transaksi_spbu.csv"));
     if (chooser.showSaveDialog(this) != JFileChooser.APPROVE_OPTION)
       return;
+      
     String path = chooser.getSelectedFile().getAbsolutePath();
+    if (!path.toLowerCase().endsWith(".csv")) {
+      path += ".csv";
+    }
+    
     try (PrintWriter pw = new PrintWriter(new FileWriter(path))) {
-      // header
       String[] headers = controller.getTableHeader();
       pw.println(String.join(",", headers));
+      
       for (Transaksi t : controller.getDaftarTransaksi()) {
         Object[] row = t.toTableRow();
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < row.length; i++) {
           String s = row[i] == null ? "" : row[i].toString();
-          // escape simple comma
-          if (s.contains(","))
+          if (s.contains(",") || s.contains("\"") || s.contains("\n")) {
             s = "\"" + s.replace("\"", "\"\"") + "\"";
+          }
           sb.append(s);
-          if (i < row.length - 1)
-            sb.append(",");
+          if (i < row.length - 1) sb.append(",");
         }
         pw.println(sb.toString());
       }
     }
-    JOptionPane.showMessageDialog(this, "Export CSV selesai: " + path);
+    
+    JOptionPane.showMessageDialog(this, "Export CSV berhasil: " + path);
+    txtInfo.append("Data diexport ke: " + path + "\n");
   }
 }

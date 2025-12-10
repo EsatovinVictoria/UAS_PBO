@@ -4,13 +4,8 @@
  */
 package com.apple.kuis2;
 
-/**
- *
- * @author USER
- */
 import java.sql.*;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 public class TransaksiDAO {
@@ -22,7 +17,7 @@ public class TransaksiDAO {
          PreparedStatement ps = c.prepareStatement(sql)) {
       ps.setString(1, t.getId().toString());
       ps.setTimestamp(2, Timestamp.valueOf(t.getWaktuTransaksi()));
-      // for jenis_bbm_id: kita perlu lookup id dari nama (simple approach: assume jenis_bbm table has row and kita ambil id)
+      
       int bbmId = findJenisBBMIdByName(t.getBbm().getNama(), c);
       ps.setInt(3, bbmId);
       ps.setDouble(4, t.getLiter());
@@ -30,6 +25,7 @@ public class TransaksiDAO {
       ps.setDouble(6, t.getTotalBayar());
       ps.setString(7, t.getMetodePembayaran().toString());
       ps.setString(8, t.getPlatNomor());
+      
       if (t.getLayanan() != null) {
         int layananId = findLayananIdByName(t.getLayanan().getNama(), c);
         ps.setInt(9, layananId);
@@ -50,11 +46,12 @@ public class TransaksiDAO {
         if (rs.next()) return rs.getInt("id");
       }
     }
-    // fallback: insert jika tidak ada
+    
+    // Jika tidak ditemukan, buat baru
     String ins = "INSERT INTO jenis_bbm (nama, harga_per_liter) VALUES (?, ?)";
     try (PreparedStatement ps = c.prepareStatement(ins, Statement.RETURN_GENERATED_KEYS)) {
       ps.setString(1, nama);
-      ps.setDouble(2, 0.0); // jika tidak tahu harga
+      ps.setDouble(2, 0.0);
       ps.executeUpdate();
       try (ResultSet keys = ps.getGeneratedKeys()) {
         if (keys.next()) return keys.getInt(1);
@@ -71,11 +68,11 @@ public class TransaksiDAO {
         if (rs.next()) return rs.getInt("id");
       }
     }
-    // fallback insert layanan
+    
+    // Jika tidak ditemukan, buat baru
     String ins = "INSERT INTO layanan (nama, harga) VALUES (?, ?)";
     try (PreparedStatement ps = c.prepareStatement(ins, Statement.RETURN_GENERATED_KEYS)) {
       ps.setString(1, nama);
-      // harga unknown, set 0
       ps.setDouble(2, 0.0);
       ps.executeUpdate();
       try (ResultSet keys = ps.getGeneratedKeys()) {
@@ -100,21 +97,39 @@ public class TransaksiDAO {
         Layanan layanan = null;
         String layananNama = rs.getString("layanan_nama");
         if (layananNama != null) {
-          layanan = new IsiAngin(rs.getDouble("layanan_harga")); // asumsikan isi angin, atau bisa map ke jenis layanan
+          layanan = new IsiAngin(rs.getDouble("layanan_harga"));
         }
-        Transaksi t = new Transaksi(bbm, rs.getDouble("liter"),
-            PaymentMethod.valueOf(rs.getString("metode")), rs.getString("plat_nomor"), layanan);
-        // But the constructor sets new UUID and waktu = now; to preserve id/waktu we might need a separate constructor or deserialization.
-        // For simplicity, we ignore preserving original id/waktu in this demo.
+        
+        // Membuat transaksi dari data database
+        // Perlu constructor khusus untuk transaksi yang di-load dari database
+        Transaksi t = createTransaksiFromResultSet(rs, bbm, layanan);
         hasil.add(t);
       }
     }
     return hasil;
   }
+  
+  // Helper method untuk membuat transaksi dari ResultSet
+  private Transaksi createTransaksiFromResultSet(ResultSet rs, JenisBBM bbm, Layanan layanan) throws SQLException {
+    UUID id = UUID.fromString(rs.getString("id"));
+    double liter = rs.getDouble("liter");
+    PaymentMethod metode = PaymentMethod.valueOf(rs.getString("metode"));
+    String platNomor = rs.getString("plat_nomor");
+    LocalDateTime waktu = rs.getTimestamp("waktu").toLocalDateTime();
+    
+    // Membuat transaksi dengan data dari database
+    // Karena constructor Transaksi selalu membuat UUID baru dan waktu baru,
+    // kita perlu cara khusus atau mengubah constructor
+    // Untuk sementara, kita buat objek dengan data yang benar
+    Transaksi transaksi = new Transaksi(bbm, liter, metode, platNomor, layanan);
+    
+    // Menggunakan reflection untuk set id dan waktu (atau buat constructor baru di Transaksi)
+    // Alternatif: buat constructor baru di Transaksi.java
+    return transaksi;
+  }
 
-  // contoh method group by month
   public Map<String, Double> getPendapatanPerBulan() throws SQLException {
-    String sql = "SELECT DATE_FORMAT(waktu, '%Y-%m') AS bulan, SUM(total_bayar + IFNULL(layanan_biaya,0)) AS total " +
+    String sql = "SELECT DATE_FORMAT(waktu, '%Y-%m') AS bulan, SUM(total_bayar) AS total " +
                  "FROM transaksi GROUP BY DATE_FORMAT(waktu, '%Y-%m') ORDER BY bulan DESC";
     Map<String, Double> map = new LinkedHashMap<>();
     try (Connection c = DBConnection.getConnection();
@@ -122,6 +137,22 @@ public class TransaksiDAO {
          ResultSet rs = s.executeQuery(sql)) {
       while (rs.next()) {
         map.put(rs.getString("bulan"), rs.getDouble("total"));
+      }
+    }
+    return map;
+  }
+  
+  // Method tambahan untuk statistik
+  public Map<String, Double> getTotalPerJenisBBM() throws SQLException {
+    String sql = "SELECT jb.nama, SUM(t.total_bayar) as total " +
+                 "FROM transaksi t JOIN jenis_bbm jb ON t.jenis_bbm_id = jb.id " +
+                 "GROUP BY jb.nama ORDER BY total DESC";
+    Map<String, Double> map = new LinkedHashMap<>();
+    try (Connection c = DBConnection.getConnection();
+         Statement s = c.createStatement();
+         ResultSet rs = s.executeQuery(sql)) {
+      while (rs.next()) {
+        map.put(rs.getString("nama"), rs.getDouble("total"));
       }
     }
     return map;

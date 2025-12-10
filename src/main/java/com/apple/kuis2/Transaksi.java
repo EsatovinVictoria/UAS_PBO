@@ -4,26 +4,22 @@
  */
 package com.apple.kuis2;
 
-/**
- *
- * @author USER
- */
-
 import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 
 public class Transaksi implements Serializable {
-  private final UUID id;
+  private UUID id;
   private final JenisBBM bbm;
   private final double liter;
   private final double totalBayar;
   private final PaymentMethod metodePembayaran;
   private final String platNomor;
-  private final LocalDateTime waktuTransaksi;
-  private final Layanan layanan; // bisa null
+  private LocalDateTime waktuTransaksi;
+  private final Layanan layanan;
 
+  // Constructor untuk transaksi baru (membuat ID dan waktu otomatis)
   public Transaksi(JenisBBM bbm, double liter, PaymentMethod metodePembayaran, String platNomor) {
     this(bbm, liter, metodePembayaran, platNomor, null);
   }
@@ -41,8 +37,31 @@ public class Transaksi implements Serializable {
     this.layanan = layanan;
   }
 
+  // Constructor untuk load dari database (dengan ID dan waktu spesifik)
+  public Transaksi(UUID id, JenisBBM bbm, double liter, double totalBayar, 
+                   PaymentMethod metodePembayaran, String platNomor, 
+                   LocalDateTime waktuTransaksi, Layanan layanan) {
+    this.id = id;
+    this.bbm = bbm;
+    this.liter = liter;
+    this.totalBayar = totalBayar;
+    this.metodePembayaran = metodePembayaran;
+    this.platNomor = platNomor;
+    this.waktuTransaksi = waktuTransaksi;
+    this.layanan = layanan;
+  }
+
+  // Getter dan setter untuk ID dan waktu (untuk database loading)
   public UUID getId() {
     return id;
+  }
+  
+  public void setId(UUID id) {
+    this.id = id;
+  }
+  
+  public void setWaktuTransaksi(LocalDateTime waktu) {
+    this.waktuTransaksi = waktu;
   }
 
   public JenisBBM getBbm() {
@@ -82,8 +101,8 @@ public class Transaksi implements Serializable {
         getFormattedWaktu(),
         bbm.getNama(),
         String.format("%.2f", liter),
-        String.format("%.2f", bbm.getHargaPerLiter()),
-        String.format("%.2f", totalBayar),
+        String.format("%,.0f", bbm.getHargaPerLiter()),
+        String.format("%,.0f", totalBayar),
         metodePembayaran.toString(),
         platNomor,
         layanan == null ? "" : layanan.getNama()
