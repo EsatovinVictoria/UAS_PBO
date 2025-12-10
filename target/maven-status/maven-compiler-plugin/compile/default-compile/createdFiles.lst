@@ -1,7 +1,6 @@
 com\apple\kuis2\PaymentMethod.class
 com\apple\kuis2\MainFrame.class
 com\apple\kuis2\BBMManager.class
-com\apple\kuis2\DBConnection.class
 com\apple\kuis2\PanelTransaksi.class
 com\apple\kuis2\IsiAngin.class
 com\apple\kuis2\PanelTransaksi$1.class
@@ -13,5 +12,6 @@ com\apple\kuis2\PanelReport.class
 com\apple\kuis2\JenisBBM.class
 com\apple\kuis2\Produk.class
 com\apple\kuis2\MySQLReportGenerator.class
+db\DBConnection.class
 com\apple\kuis2\Layanan.class
 com\apple\kuis2\Transaksi.class

@@ -1,16 +1,24 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
 package com.apple.kuis2;
 
-/**
- *
- * @author USER
- */
-public class App {
+import view.LoginForm;
+import service.LoginService;
+import javax.swing.UIManager;
 
+public class App {
   public static void main(String[] args) {
-    new MainFrame();
+    // Set look and feel
+    try {
+      UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
+
+    // Jalankan aplikasi
+    java.awt.EventQueue.invokeLater(() -> {
+      LoginForm loginForm = new LoginForm();
+      // Tambahkan controller
+      new LoginService(loginForm);
+      loginForm.setVisible(true);
+    });
   }
 }
